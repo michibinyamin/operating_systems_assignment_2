@@ -16,7 +16,6 @@ int main(int argc, char *argv[]) {
 
     // Command to execute
     char *command = argv[2];
-
     // Split command into executable and arguments
     char *args[256];
     int i = 0;
@@ -26,6 +25,9 @@ int main(int argc, char *argv[]) {
         token = strtok(NULL, " ");
     }
     args[i] = NULL; // Null-terminate the arguments array
+
+    printf("%s\n",args[0]);
+    printf("%s\n",args[1]);
 
     // Fork the process
     pid_t pid = fork();

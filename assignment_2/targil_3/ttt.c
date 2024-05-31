@@ -15,14 +15,14 @@ void input_validation(int argc , char *argv[])
     //Too many parameters
     if(argc > 2)
     {
-        printf("Error- you need to input *only one* arg!\n");
+        fprintf(stderr,"Error- you need to input *only one* arg!\n");
         exit(EXIT_FAILURE);  // Terminate the program successfully
     }
 
     //no parameter
     if(argc == 1)
     {
-        printf("Error- you need to input arg, for example: '156324789'!\n");
+        fprintf(stderr,"Error- you need to input arg, for example: '156324789'!\n");
         exit(EXIT_FAILURE);
     }
 
@@ -35,7 +35,7 @@ void input_validation(int argc , char *argv[])
     //only 9 digit
     if(size != 9)
     {
-        printf("Error- you need to input arg with only 9 digits length!\n");
+        fprintf(stderr,"Error- you need to input arg with only 9 digits length!\n");
         exit(EXIT_FAILURE);
     }
 
@@ -45,7 +45,7 @@ void input_validation(int argc , char *argv[])
         char c = inputPlay[i];
         if(c < '1' || c > '9')
         {
-            printf("Error- you need to only digits 1-9!\n");
+            fprintf(stderr,"Error- you need to only digits 1-9!\n");
             exit(EXIT_FAILURE);
         }
 
@@ -53,7 +53,7 @@ void input_validation(int argc , char *argv[])
         countD[converTodigit]++;
         if(countD[converTodigit] > 1)
         {
-            printf("Error- there is a digit that appears more than once\n");
+            fprintf(stderr,"Error- there is a digit that appears more than once\n");
             exit(EXIT_FAILURE);
         }
 
@@ -65,7 +65,7 @@ void input_validation(int argc , char *argv[])
     {
         if(countD[i] != 1)
         {
-            printf("Error- there is a digit that appears more than once\n");
+            fprintf(stderr,"Error- there is a digit that appears more than once\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -85,10 +85,10 @@ bool checkFinishGame()
     {
         if(matrixPlay[0][0] == -1)
         {
-            printf("I WIN!\n");
+            fprintf(stderr,"I WIN!\n");
             return true;
         } else if(matrixPlay[0][0] == -2){
-            printf("I LOST.. \n");
+            fprintf(stderr,"I LOST.. \n");
             return true;
         }
     }
@@ -97,10 +97,10 @@ bool checkFinishGame()
     {
         if(matrixPlay[0][2] == -1)
         {
-            printf("I WIN!\n");
+            fprintf(stderr,"I WIN!\n");
             return true;
         } else if(matrixPlay[0][2] == -2){
-            printf("I LOST.. \n");
+            fprintf(stderr,"I LOST.. \n");
             return true;
         }
     }
@@ -112,10 +112,10 @@ bool checkFinishGame()
         {
             if(matrixPlay[i][0] == -1)
             {
-                printf("I WIN!\n");
+                fprintf(stderr,"I WIN!\n");
                 return true;
             } else if(matrixPlay[i][0] == -2){
-                printf("I LOST.. \n");
+                fprintf(stderr,"I LOST.. \n");
                 return true;
             }
         }
@@ -123,10 +123,10 @@ bool checkFinishGame()
         {
             if(matrixPlay[0][i] == -1)
             {
-                printf("I WIN!\n");
+                fprintf(stderr,"I WIN!\n");
                 return true;
             } else if(matrixPlay[0][i] == -2){
-                printf("I LOST.. \n");
+                fprintf(stderr,"I LOST.. \n");
                 return true;
             }
         }
@@ -162,7 +162,7 @@ void programStep()
         {
             ((int*)matrixPlay)[position-1] = -1;  // Mark on board
             update_list(position); // Mark in list as played
-            printf("Computer moved on : %d\n", position);
+            fprintf(stderr,"Computer moved on : %d\n", position);
             return;
         }
     }
@@ -177,12 +177,12 @@ void playerStep()
     // A loop which makes sure that player's move is legal
     while (!legal)
     {
-        printf("Your move : ");
+        fprintf(stderr,"Your move : ");
         is_digit = scanf("%d", &position);  // If is_digit is 0 then the user did not input a number
         if (position > 9 || position < 1 || is_digit != 1)  // user input is not between 1 and 9
         {
             getchar();  // In case there was a digit input
-            printf("please enter a number between 1 and 9\n");
+            fprintf(stderr,"please enter a number between 1 and 9\n");
             legal = false;
         }
 
@@ -190,7 +190,7 @@ void playerStep()
         {
             if (((int*)matrixPlay)[position-1] != 0)  // Position is taken
             {     
-                printf("This position is taken\n");
+                fprintf(stderr,"This position is taken\n");
                 legal = false;
             }
 
@@ -198,7 +198,7 @@ void playerStep()
             {   
                 ((int*)matrixPlay)[position-1] = -2;  // Mark on board
                 update_list(position);  // Mark in list as played
-                printf("moved succesfully\n");
+                fprintf(stderr,"moved succesfully\n");
                 legal = true;
             }   
         }
@@ -207,6 +207,9 @@ void playerStep()
 
 int main(int argc , char *argv[])
 {
+    // Force stdout to be unbuffered
+    //setvbuf(stdout, NULL, _IONBF, 0);
+
     // Checks if input is correct + add the values to the digitplay
     input_validation(argc,argv);
     bool turn = true;   // true = computer's turn. false = player's turn
@@ -231,6 +234,6 @@ int main(int argc , char *argv[])
         }
     }
     // End of the loop the board is full, so if it has reached here then there is no winner, tie.
-    printf("TIE!\n");
+    fprintf(stderr,"TIE!\n");
     return 0;
 }

@@ -210,7 +210,6 @@ int main(int argc , char *argv[])
     // Checks if input is correct + add the values to the digitplay
     input_validation(argc,argv);
     bool turn = true;   // true = computer's turn. false = player's turn
-
     // A loop which itarates for all of the moves needed
     for (size_t i = 0; i < ROW_COL*ROW_COL; i++)
     {
