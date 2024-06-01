@@ -53,7 +53,53 @@ int create_server(int port) {
     return connfd;
 }
 
-void handle_client(int sockfd_in,int sockfd_out, int sockfd_both, char *program, char **args, int input, int output, int both){
+
+
+int create_client(char* ip, int port) {
+    if (strcmp(ip, "localhost") == 0) {
+        ip = "127.0.0.1";
+    }
+    
+    int sockfd;
+    struct sockaddr_in serverAddr;
+
+    // Create a socket
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd == -1) {
+        perror("socket");
+        return -1;
+    }
+
+    // Fill in server address structure
+    memset(&serverAddr, 0, sizeof(serverAddr));
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(port);
+
+    // Convert IP address from text to binary form
+    if (inet_pton(AF_INET, ip, &serverAddr.sin_addr) <= 0) {
+        perror("inet_pton");
+        close(sockfd);
+        return -1;
+    }
+
+    // Connect to server
+    if (connect(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
+        perror("connect");
+        close(sockfd);
+        return -1;
+    }
+
+    return sockfd; // Return socket file descriptor
+}
+
+
+
+
+
+
+
+
+void handle(int sockfd_in,int sockfd_out, int sockfd_both, char *program, char **args, int input, int output, int both){
 
     // Open pipes for input and output
     int input_pipefd[2];
@@ -209,6 +255,10 @@ void print_usage(const char *prog_name) {
     exit(1);
 }
 
+
+
+
+
 int main(int argc, char *argv[]) {
     if (argc < 3 || strcmp(argv[1], "-e") != 0) {
         print_usage(argv[0]);
@@ -220,10 +270,24 @@ int main(int argc, char *argv[]) {
     char *both_param = NULL;
 
 
-    // Get the ports number
+    // Get the ports number for TCPS
     int input_port;
     int output_port;
     int both_port;
+
+    // Get the ports and ip numbers for TCPC
+    int C_input_port;
+    int C_output_port;
+    int C_both_port;
+
+    char* input_ip;
+    char* output_ip;
+    char* both_ip;
+
+    // Mark which and what to create. 0-nothing, 1-TCPS, 2-TCPC
+    int got_input = 0;
+    int got_output = 0;
+    int got_both = 0;
 
     // Find all of the relevent flags and store them
     for (int i = 3; i < argc; i += 2) {
@@ -232,14 +296,39 @@ int main(int argc, char *argv[]) {
         }
         if (strcmp(argv[i], "-i") == 0) {
             input_param = argv[i + 1];
-            sscanf(input_param, "TCPS%d", &input_port);     // Add TCPC
-
+            int result = sscanf(input_param, "TCPS%d", &input_port);
+            got_input = 1;
+            if (result == 0) // If TCPC
+            {
+                input_ip = strtok(input_param+4, ",");  // Skip "TCPC"
+                char* token = strtok(NULL, ",");
+                C_input_port = atoi(token);    // Convert token to integer
+                got_input = 2;
+            }
+    
         } else if (strcmp(argv[i], "-o") == 0) {
             output_param = argv[i + 1];
-            sscanf(output_param, "TCPS%d", &output_port);   // Add TCPC
+            int result = sscanf(output_param, "TCPS%d", &output_port);   
+            got_output = 1;
+            if (result == 0) // If TCPC
+            {
+                output_ip = strtok(output_param+4, ",");  // Skip "TCPC"
+                char* token = strtok(NULL, ",");
+                C_output_port = atoi(token);    // Convert token to integer
+                got_output = 2;
+            }   
         } else if (strcmp(argv[i], "-b") == 0) {
             both_param = argv[i + 1];
-            sscanf(both_param, "TCPS%d", &both_port);   // Add TCPC
+            int result = sscanf(both_param, "TCPS%d", &both_port);   
+            got_both = 1;
+            if (result == 0) // If TCPC
+            {
+                both_ip = strtok(both_param+4, ",");  // Skip "TCPC"
+                sscanf(both_param, ",%d", &C_both_port); 
+                char* token = strtok(NULL, ",");
+                C_both_port = atoi(token);    // Convert token to integer
+                got_both = 2;
+            }
         } else {
             print_usage(argv[0]);
         }
@@ -259,32 +348,54 @@ int main(int argc, char *argv[]) {
     int sockfd_output;
     int sockfd_both;
 
-    // Mark which where 
-    int got_input = 0;
-    int got_output = 0;
-    int got_both = 0;
-
     if (both_param)
     {
-       got_both = 1;
-       sockfd_both = create_server(both_port); // One of the ports, they are the same. this is for avoiding to create two servers
+       if (got_both == 1)
+       {
+            sockfd_both = create_server(both_port); // One of the ports, they are the same. this is for avoiding to create two servers
+       }
+       else{    // == 2
+            sockfd_both = create_client(both_ip,C_both_port);
+       }
+       
     }else{
         if (input_param)
         {
-            got_input = 1;
-            // Create a server and wait for client connection
-            sockfd_input = create_server(input_port);
+            if(got_input == 1){
+                // Create a server and wait for client connection
+                sockfd_input = create_server(input_port);
+            }else{  // == 2
+                
+                sockfd_input = create_client(input_ip,C_input_port);
+            }
+            
         }
         if (output_param)
         {
-            got_output = 1;
-            // Create a server and wait for client connection
-            sockfd_output = create_server(output_port);
+            if(got_output == 1){
+                // Create a server and wait for client connection
+                sockfd_output = create_server(output_port);
+            }else{  // == 2
+                sockfd_output = create_client(output_ip,C_output_port);
+            }
         }
     }
-
     // this function will handle the rest
-    handle_client(sockfd_input,sockfd_output,sockfd_both, args[0], args, got_input, got_output, got_both);
+    handle(sockfd_input,sockfd_output,sockfd_both, args[0], args, got_input, got_output, got_both);
+
+    // Close the sockets
+    if (close(sockfd_input) == -1) {
+        perror("Error while closing socket");
+        exit(EXIT_FAILURE);
+    }
+    if (close(sockfd_output) == -1) {
+        perror("Error while closing socket");
+        exit(EXIT_FAILURE);
+    }
+    if (close(sockfd_both) == -1) {
+        perror("Error while closing socket");
+        exit(EXIT_FAILURE);
+    }
 
     return 0;
 }
