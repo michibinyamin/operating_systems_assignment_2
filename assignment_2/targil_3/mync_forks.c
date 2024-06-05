@@ -93,31 +93,166 @@ int create_client(char* ip, int port) {
 }
 
 
-// Handles redirections
-void handle(int sockfd_in,int sockfd_out, int sockfd_both, int input, int output, int both){
-    if (both)
-    {
-        dup2(sockfd_both, STDIN_FILENO);  // Redirect stdin to the read end of the input pipe (set read here from the pipe)
-        dup2(sockfd_both, STDOUT_FILENO);  // Redirect stdout to the write end of the output pipe
-        dup2(sockfd_both, STDERR_FILENO);  // Redirect stderr to the write end of the output pipe
-    }else{
-    if (input)
-        {
-            dup2(sockfd_in, STDIN_FILENO);  // Redirect stdin to the read end of the input pipe (set read here from the pipe)
-        }
 
-        if (output)
+
+
+void handle(int sockfd_in,int sockfd_out, int sockfd_both, char *program, char **args, int input, int output, int both){
+
+    // Open pipes for input and output
+    int input_pipefd[2];
+    int output_pipefd[2];
+    
+    if (pipe(input_pipefd) == -1 || pipe(output_pipefd) == -1) {
+        perror("pipe");
+        exit(EXIT_FAILURE);
+    }
+
+    // Fork for handeling client and program communication
+    pid_t pid = fork();
+    if (pid == -1) {
+        perror("fork");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pid == 0) {
+        // Child process
+        close(input_pipefd[1]);  // Close unused write end of the input pipe
+        close(output_pipefd[0]);  // Close unused read end of the output pipe
+
+        if (input || both)
         {
-            dup2(sockfd_out, STDOUT_FILENO);  // Redirect stdout to the write end of the output pipe
-            dup2(sockfd_out, STDERR_FILENO);  // Redirect stderr to the write end of the output pipe
+            dup2(input_pipefd[0], STDIN_FILENO);  // Redirect stdin to the read end of the input pipe (set read here from the pipe)
         }
+        close(input_pipefd[0]);
+        
+
+        if (output || both)
+        {
+            dup2(output_pipefd[1], STDOUT_FILENO);  // Redirect stdout to the write end of the output pipe
+            dup2(output_pipefd[1], STDERR_FILENO);  // Redirect stderr to the write end of the output pipe
+        }
+        
+
+        close(output_pipefd[1]);    // Close unused write end of the output pipe
+        // Execute the desired program
+        if (execvp(program, args) == -1) {
+            perror("execvp");
+            exit(EXIT_FAILURE);
+        }
+    }else{
+        // Parent process (acts as the client)
+        close(input_pipefd[0]);  // Close unused read end of the input pipe
+        close(output_pipefd[1]);  // Close unused write end of the output pipe
+
+        char buffer[BUFFER_SIZE];
+        ssize_t n;
+
+        if (both){
+            // Fork for handeling send and receive
+            pid_t pid = fork();
+            if (pid == -1) {
+                perror("fork");
+                exit(EXIT_FAILURE);
+            }
+            if (pid == 0) {
+                // Read data from the client and write it to the input pipe
+                while ((n = read(sockfd_both, buffer, BUFFER_SIZE)) > 0) {   // Write to the buffer the client input
+                    if (write(input_pipefd[1], buffer, n) != n) {   // Write to the pipe the buffer
+                        perror("write to input pipe");
+                        break;
+                    }
+                }
+                close(input_pipefd[1]);  // Close write end of the input pipe
+                exit(EXIT_SUCCESS); 
+            }else{
+                // Read the output from the output pipe and send it to the client
+                while ((n = read(output_pipefd[0], buffer, BUFFER_SIZE)) > 0) {  // read to the buffer the output of the program
+                    if (write(sockfd_both, buffer, n) != n) {
+                        perror("write to client");
+                        break;
+                    }
+                }
+                close(output_pipefd[0]);  // Close read end of the output pipe
+                wait(NULL);     // Wait for the child process to finish
+            }
+
+            close(output_pipefd[0]);  // Close read end of the output pipe
+            close(input_pipefd[1]);  // Close write end of the input pipe
+
+        }
+        else if (input && output)
+        {
+            // Fork for handeling two terminals
+            pid_t pid = fork();
+            if (pid == -1) {
+                perror("fork");
+                exit(EXIT_FAILURE);
+            }
+            if (pid == 0) {
+                // Read data from the client and write it to the input pipe
+                while ((n = read(sockfd_in, buffer, BUFFER_SIZE)) > 0) {   // Write to the buffer the client input
+                    if (write(input_pipefd[1], buffer, n) != n) {   // Write to the pipe the buffer
+                        perror("write to input pipe");
+                        break;
+                    }
+                }
+                close(input_pipefd[1]);  // Close write end of the input pipe
+                exit(EXIT_SUCCESS); 
+            }else{
+                // Read the output from the output pipe and send it to the client
+                while ((n = read(output_pipefd[0], buffer, BUFFER_SIZE)) > 0) {  // read to the buffer the output of the program
+                    if (write(sockfd_out, buffer, n) != n) {
+                        perror("write to client");
+                        break;
+                    }
+                }
+                close(output_pipefd[0]);  // Close read end of the output pipe
+                wait(NULL);     // Wait for the child process to finish
+            }
+
+            close(output_pipefd[0]);  // Close read end of the output pipe
+            close(input_pipefd[1]);  // Close write end of the input pipe
+
+        }
+        else{
+            if (input)
+            {
+                // Read data from the client and write it to the input pipe
+                while ((n = read(sockfd_in, buffer, BUFFER_SIZE)) > 0) {   // Write to the buffer the client input
+                    if (write(input_pipefd[1], buffer, n) != n) {   // Write to the pipe the buffer
+                        perror("write to input pipe");
+                        break;
+                    }
+                }
+                close(input_pipefd[1]);  // Close write end of the input pipe
+            }
+            if (output)
+            {
+                // Read the output from the output pipe and send it to the client
+                while ((n = read(output_pipefd[0], buffer, BUFFER_SIZE)) > 0) {  // read to the buffer the output of the program
+                    if (write(sockfd_out, buffer, n) != n) {
+                        perror("write to client");
+                        break;
+                    }
+                }
+                close(output_pipefd[0]);  // Close read end of the output pipe
+            }
+        }
+        close(sockfd_in);  // Close the client socket
+        close(sockfd_out);
+        wait(NULL);     // Wait for the child process to finish
     }
 }
+
+
+
 
 void print_usage(const char *prog_name) {
     fprintf(stderr, "Usage: %s -e <command> [-i <input>] [-o <output>] [-b <both>]\n", prog_name);
     exit(1);
 }
+
+
 
 
 
@@ -243,12 +378,7 @@ int main(int argc, char *argv[]) {
         }
     }
     // this function will handle the rest
-    handle(sockfd_input,sockfd_output,sockfd_both, got_input, got_output, got_both);
-    // Execute the desired program
-    if (execvp(args[0], args) == -1) {
-        perror("execvp");
-        exit(EXIT_FAILURE);
-    }
+    handle(sockfd_input,sockfd_output,sockfd_both, args[0], args, got_input, got_output, got_both);
 
     // Close the sockets
     if (close(sockfd_input) == -1) {
