@@ -97,19 +97,19 @@ int create_client(char* ip, int port) {
 void handle(int sockfd_in,int sockfd_out, int sockfd_both, int input, int output, int both){
     if (both)
     {
-        dup2(sockfd_both, STDIN_FILENO);  // Redirect stdin to the read end of the input pipe (set read here from the pipe)
-        dup2(sockfd_both, STDOUT_FILENO);  // Redirect stdout to the write end of the output pipe
-        dup2(sockfd_both, STDERR_FILENO);  // Redirect stderr to the write end of the output pipe
+        dup2(sockfd_both, STDIN_FILENO);   // Redirect stdin to sockfd
+        dup2(sockfd_both, STDOUT_FILENO);  // Redirect stdout to sockfd
+        dup2(sockfd_both, STDERR_FILENO);  // Redirect stderr to sockfd
     }else{
     if (input)
         {
-            dup2(sockfd_in, STDIN_FILENO);  // Redirect stdin to the read end of the input pipe (set read here from the pipe)
+            dup2(sockfd_in, STDIN_FILENO);  // Redirect stdin to the read from sockfd_in
         }
 
         if (output)
         {
-            dup2(sockfd_out, STDOUT_FILENO);  // Redirect stdout to the write end of the output pipe
-            dup2(sockfd_out, STDERR_FILENO);  // Redirect stderr to the write end of the output pipe
+            dup2(sockfd_out, STDOUT_FILENO);  // Redirect stdout to sockfd
+            dup2(sockfd_out, STDERR_FILENO);  // Redirect stderr to sockfd
         }
     }
 }
@@ -120,13 +120,19 @@ void print_usage(const char *prog_name) {
 }
 
 
+int isE = 3;
 
 int main(int argc, char *argv[]) {
-    if (argc < 3 || strcmp(argv[1], "-e") != 0) {
+    if (argc < 2) {
         print_usage(argv[0]);
     }
+    if (strcmp(argv[1], "-e") != 0)
+    {
+        isE--;
+    }
+    
 
-    char *command = argv[2];
+    char *command = argv[isE-1];
     char *input_param = NULL;
     char *output_param = NULL;
     char *both_param = NULL;
@@ -152,7 +158,7 @@ int main(int argc, char *argv[]) {
     int got_both = 0;
 
     // Find all of the relevent flags and store them
-    for (int i = 3; i < argc; i += 2) {
+    for (int i = isE; i < argc; i += 2) {
         if (i + 1 >= argc) {
             print_usage(argv[0]);
         }
@@ -195,7 +201,6 @@ int main(int argc, char *argv[]) {
             print_usage(argv[0]);
         }
     }
-
     // Devide the command into an array
     char *args[256];
     int i = 0;
@@ -242,12 +247,26 @@ int main(int argc, char *argv[]) {
             }
         }
     }
-    // this function will handle the rest
+    // this function will handle directing the file descripters as needed
     handle(sockfd_input,sockfd_output,sockfd_both, got_input, got_output, got_both);
-    // Execute the desired program
-    if (execvp(args[0], args) == -1) {
-        perror("execvp");
-        exit(EXIT_FAILURE);
+    if (isE == 3)   // id -e run the program
+    {
+        // Execute the desired program
+        if (execvp(args[0], args) == -1) {
+            perror("execvp");
+            exit(EXIT_FAILURE);
+        }
+    }
+    // In else case we choose to print the input, this way the communication works
+    else{
+        char buffer[1024]; // buffer to hold the input
+        while(1){
+            if (fgets(buffer,sizeof(buffer), stdin) != NULL)
+            {
+                printf("%s",buffer);
+            }
+            
+        }
     }
 
     // Close the sockets
