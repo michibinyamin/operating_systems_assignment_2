@@ -628,7 +628,19 @@ int main(int argc, char *argv[]) {
     //     perror("Error while closing socket");
     //     exit(EXIT_FAILURE);
     // }
-
     return 0;
 }
+
+// Using netcat : 
+
+// tcp server : nc -l port
+// udp server : nc -u -l port
+// unix domain stream server : nc -U -l path
+// unix domain datagram server : nc -uU -l -k path
+
+// tcp client : nc localhost port
+// udp client : nc -u localhost port
+// unix domain stream client : nc -U path
+// unix domain datagram client : -uU path
+
 

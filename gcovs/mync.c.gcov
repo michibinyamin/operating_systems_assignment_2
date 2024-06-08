@@ -1,0 +1,651 @@
+        -:    0:Source:mync.c
+        -:    0:Graph:mync.gcno
+        -:    0:Data:mync.gcda
+        -:    0:Runs:54
+        -:    0:Source is newer than graph
+        -:    1:#include <stdio.h>
+        -:    2:#include <stdlib.h>
+        -:    3:#include <string.h>
+        -:    4:#include <unistd.h>
+        -:    5:#include <signal.h>
+        -:    6:#include <sys/wait.h>
+        -:    7:#include <arpa/inet.h>
+        -:    8:#include <sys/types.h>
+        -:    9:#include <sys/socket.h>
+        -:   10:#include <sys/un.h>
+        -:   11:
+        -:   12:#define BUFFER_SIZE 1024
+        -:   13:
+        6:   14:int create_server(int port) {
+        -:   15:    int sockfd, connfd;
+        -:   16:    struct sockaddr_in serv_addr, cli_addr;
+        6:   17:    socklen_t len = sizeof(cli_addr);
+        -:   18:
+        -:   19:    // Create socket
+        6:   20:    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    #####:   21:        perror("Socket creation error");
+    #####:   22:        return -1;
+        -:   23:    }
+        -:   24:
+        6:   25:    memset(&serv_addr, 0, sizeof(serv_addr));
+        -:   26:
+        6:   27:    serv_addr.sin_family = AF_INET;
+        6:   28:    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+        6:   29:    serv_addr.sin_port = htons(port);
+        -:   30:
+        -:   31:    // Bind the socket
+        6:   32:    if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1) {
+        1:   33:        perror("Bind failed");
+        1:   34:        close(sockfd);
+        1:   35:        return -1;
+        -:   36:    }
+        -:   37:
+        -:   38:    // Listen for incoming connections
+        5:   39:    if (listen(sockfd, 10) == -1) {
+    #####:   40:        perror("Listen failed");
+    #####:   41:        close(sockfd);
+    #####:   42:        return -1;
+        -:   43:    }
+        -:   44:
+        -:   45:    // Accept connection from client
+        5:   46:    if ((connfd = accept(sockfd, (struct sockaddr *)&cli_addr, &len)) == -1) {
+    #####:   47:        perror("Accept failed");
+    #####:   48:        close(sockfd);
+    #####:   49:        return -1;
+        -:   50:    }
+        -:   51:
+        4:   52:    printf("Connection accepted from %s:%d\n", inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
+        -:   53:
+        -:   54:    // Close the original listening socket as it's no longer needed
+        4:   55:    close(sockfd);
+        -:   56:
+        4:   57:    return connfd;
+        -:   58:}
+        -:   59:
+        -:   60:
+        6:   61:int create_client(char* ip, int port) {
+        6:   62:    if (strcmp(ip, "localhost") == 0) {
+        6:   63:        ip = "127.0.0.1";
+        -:   64:    }
+        -:   65:    
+        -:   66:    int sockfd;
+        -:   67:    struct sockaddr_in serverAddr;
+        -:   68:
+        -:   69:    // Create a socket
+        6:   70:    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+        6:   71:    if (sockfd == -1) {
+    #####:   72:        perror("socket");
+    #####:   73:        return -1;
+        -:   74:    }
+        -:   75:
+        -:   76:    // Fill in server address structure
+        6:   77:    memset(&serverAddr, 0, sizeof(serverAddr));
+        6:   78:    serverAddr.sin_family = AF_INET;
+        6:   79:    serverAddr.sin_port = htons(port);
+        -:   80:
+        -:   81:    // Convert IP address from text to binary form
+        6:   82:    if (inet_pton(AF_INET, ip, &serverAddr.sin_addr) <= 0) {
+    #####:   83:        perror("inet_pton");
+    #####:   84:        close(sockfd);
+    #####:   85:        return -1;
+        -:   86:    }
+        -:   87:
+        -:   88:    // Connect to server
+        6:   89:    if (connect(sockfd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) < 0) {
+        2:   90:        perror("connect");
+        2:   91:        close(sockfd);
+        2:   92:        return -1;
+        -:   93:    }
+        -:   94:
+        4:   95:    return sockfd; // Return socket file descriptor
+        -:   96:}
+        -:   97:
+        -:   98:// Function to create and bind a UDP socket
+        8:   99:int create_udp_server(int port) {
+        -:  100:    int server_socket;
+        -:  101:    struct sockaddr_in server_addr;
+        -:  102:
+        -:  103:    // Create socket
+        8:  104:    server_socket = socket(AF_INET, SOCK_DGRAM, 0);
+        8:  105:    if (server_socket < 0) {
+    #####:  106:        perror("Socket creation failed");
+    #####:  107:        return -1;
+        -:  108:    }
+        -:  109:
+        -:  110:    // Configure server address struct
+        8:  111:    memset(&server_addr, 0, sizeof(server_addr));
+        8:  112:    server_addr.sin_family = AF_INET;            // IPv4
+        8:  113:    server_addr.sin_port = htons(port);         // Port number
+        8:  114:    server_addr.sin_addr.s_addr = INADDR_ANY;   // Bind to any IP address
+        -:  115:
+        -:  116:    // Bind the socket to the address and port
+        8:  117:    if (bind(server_socket, (const struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+    #####:  118:        perror("Bind failed");
+    #####:  119:        close(server_socket);
+    #####:  120:        return -1;
+        -:  121:    }
+        8:  122:    return server_socket; // Return the socket descriptor
+        -:  123:}
+        -:  124:
+        -:  125:// Function to create a UDP socket for a client and connect to the server
+        5:  126:int create_udp_client() {
+        -:  127:    int client_socket;
+        -:  128:    // Create socket
+        5:  129:    client_socket = socket(AF_INET, SOCK_DGRAM, 0);
+        5:  130:    if (client_socket < 0) {
+    #####:  131:        perror("Socket creation failed");
+    #####:  132:        return -1;
+        -:  133:    }
+        -:  134:    //char *message = "Hello, server!";
+        -:  135:    //sendto(client_socket, message, strlen(message), 0, (struct sockaddr*)&server_addr, sizeof(server_addr));
+        -:  136:
+        5:  137:    return client_socket; // Return the socket descriptor
+        -:  138:}
+        -:  139:
+        -:  140:// Function to return the server
+    #####:  141:struct sockaddr_in get_server(char* ip, int port){
+    #####:  142:    if (strcmp(ip, "localhost") == 0) {
+    #####:  143:        ip = "127.0.0.1";
+        -:  144:    }
+        -:  145:    struct sockaddr_in server_addr;
+        -:  146:    // Configure server address struct
+    #####:  147:    server_addr.sin_family = AF_INET;            // IPv4
+    #####:  148:    server_addr.sin_port = htons(port);         // Port number
+    #####:  149:    server_addr.sin_addr.s_addr = inet_addr(ip);
+    #####:  150:    memset(server_addr.sin_zero, '\0', sizeof(server_addr.sin_zero));
+    #####:  151:    return server_addr;
+        -:  152:}
+        -:  153:
+        -:  154:// Function to return the server
+        2:  155:struct sockaddr_un get_unix_server(char* path){
+        -:  156:    struct sockaddr_un server_addr;
+        -:  157:    // Configure server address struct
+        2:  158:    server_addr.sun_family = AF_UNIX;            // IPv4
+        2:  159:    strcpy(server_addr.sun_path, path);         // Port number
+        -:  160:    
+        2:  161:    return server_addr;
+        -:  162:}
+        -:  163:
+        7:  164:int create_unix_server(char* path){
+        -:  165:    int server_fd, client_fd;
+        -:  166:    struct sockaddr_un addr;
+        -:  167:    
+        -:  168:    // Create a UNIX domain socket
+        7:  169:    server_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        7:  170:    if (server_fd == -1) {
+    #####:  171:        perror("socket");
+    #####:  172:        exit(EXIT_FAILURE);
+        -:  173:    }
+        -:  174:
+        -:  175:    // Bind the socket to a path
+        7:  176:    memset(&addr, 0, sizeof(addr));
+        7:  177:    addr.sun_family = AF_UNIX;
+        7:  178:    strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
+        -:  179:    
+        7:  180:    if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        3:  181:        perror("bind");
+        3:  182:        close(server_fd);
+        3:  183:        exit(EXIT_FAILURE);
+        -:  184:    }
+        -:  185:
+        -:  186:    // Listen for connections
+        4:  187:    if (listen(server_fd, 5) == -1) {
+    #####:  188:        perror("listen");
+    #####:  189:        close(server_fd);
+    #####:  190:        exit(EXIT_FAILURE);
+        -:  191:    }
+        -:  192:
+        -:  193:    // Accept a connection
+        4:  194:    client_fd = accept(server_fd, NULL, NULL);
+        4:  195:    if (client_fd == -1) {
+    #####:  196:        perror("accept");
+    #####:  197:        close(server_fd);
+    #####:  198:        exit(EXIT_FAILURE);
+        -:  199:    }
+        4:  200:    return client_fd;
+        -:  201:}
+        -:  202:
+        4:  203:int create_unix_client(char* path){
+        -:  204:    int client_fd;
+        -:  205:    struct sockaddr_un addr;
+        -:  206:
+        -:  207:    // Create a UNIX domain socket
+        4:  208:    client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        4:  209:    if (client_fd == -1) {
+    #####:  210:        perror("socket");
+    #####:  211:        exit(EXIT_FAILURE);
+        -:  212:    }
+        -:  213:
+        -:  214:    // Specify the server's address
+        4:  215:    memset(&addr, 0, sizeof(addr));
+        4:  216:    addr.sun_family = AF_UNIX;
+        4:  217:    strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
+        -:  218:
+        -:  219:    // Connect to the server
+        4:  220:    if (connect(client_fd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+    #####:  221:        perror("connect");
+    #####:  222:        close(client_fd);
+    #####:  223:        exit(EXIT_FAILURE);
+        -:  224:    }
+        -:  225:
+        4:  226:    return client_fd;
+        -:  227:}
+        -:  228:
+        4:  229:int create_unix_data_server(char* path){
+        -:  230:    int sockfd;
+        -:  231:    struct sockaddr_un addr;
+        -:  232:    // Step 1: Create a socket
+        4:  233:    sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
+        4:  234:    if (sockfd == -1) {
+    #####:  235:        perror("socket");
+    #####:  236:        exit(EXIT_FAILURE);
+        -:  237:    }
+        -:  238:
+        -:  239:    // Step 2: Bind the socket
+        4:  240:    addr.sun_family = AF_UNIX;
+        4:  241:    strcpy(addr.sun_path, path);
+        4:  242:    if (bind(sockfd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
+        2:  243:        perror("bind");
+        2:  244:        close(sockfd);
+        2:  245:        exit(EXIT_FAILURE);
+        -:  246:    }
+        2:  247:    return sockfd;
+        -:  248:}
+        -:  249:
+        2:  250:int create_unix_data_client(){
+        -:  251:    int sockfd;
+        -:  252:
+        2:  253:    sockfd = socket(AF_UNIX, SOCK_DGRAM, 0);
+        2:  254:    if (sockfd == -1) {
+    #####:  255:        perror("socket");
+    #####:  256:        exit(EXIT_FAILURE);
+        -:  257:    }
+        2:  258:    return sockfd;
+        -:  259:}
+        -:  260:
+        -:  261:
+        -:  262:
+        -:  263:// Handles redirections
+       43:  264:void handle(int sockfd_in,int sockfd_out, int sockfd_both, int input, int output, int both){
+       43:  265:    if (both)
+        -:  266:    {
+        6:  267:        dup2(sockfd_both, STDIN_FILENO);   // Redirect stdin to sockfd
+        6:  268:        dup2(sockfd_both, STDOUT_FILENO);  // Redirect stdout to sockfd
+        6:  269:        dup2(sockfd_both, STDERR_FILENO);  // Redirect stderr to sockfd
+        -:  270:    }else{
+       37:  271:    if (input)
+        -:  272:        {
+       15:  273:            dup2(sockfd_in, STDIN_FILENO);  // Redirect stdin to the read from sockfd_in
+        -:  274:        }
+        -:  275:
+       37:  276:        if (output)
+        -:  277:        {
+       15:  278:            dup2(sockfd_out, STDOUT_FILENO);  // Redirect stdout to sockfd  
+       15:  279:            dup2(sockfd_out, STDERR_FILENO);  // Redirect stderr to sockfd
+        -:  280:        }
+        -:  281:    }
+       43:  282:}
+        -:  283:
+        3:  284:void print_usage(const char *prog_name) {
+        3:  285:    fprintf(stderr, "Usage: %s -e <command> [-i <input>] [-o <output>] [-b <both>]\n", prog_name);
+        3:  286:    exit(1);
+        -:  287:}
+        -:  288:
+        -:  289:
+        4:  290:void handle_alarm(int signo){
+        4:  291:    if (signo == SIGALRM)
+        -:  292:    {
+        4:  293:        fprintf(stderr,"Time's up!");
+        4:  294:        exit(0);
+        -:  295:    }
+    #####:  296:}
+        -:  297:
+       52:  298:int main(int argc, char *argv[]) {
+       52:  299:    int isE = 3;
+       52:  300:    if (argc < 2) {
+        1:  301:        print_usage(argv[0]);
+        -:  302:    }
+       51:  303:    if (strcmp(argv[1], "-e") != 0)
+        -:  304:    {
+        5:  305:        isE--;
+        -:  306:    }
+        -:  307:    
+       51:  308:    char *command = argv[isE-1];
+       51:  309:    char *input_param = NULL;
+       51:  310:    char *output_param = NULL;
+       51:  311:    char *both_param = NULL;
+        -:  312:
+        -:  313:    // Set time for alarm if needed
+        -:  314:    int time;
+        -:  315:
+        -:  316:    // Get the ports number for TCPS
+        -:  317:    int input_port;
+        -:  318:    int output_port;
+        -:  319:    int both_port;
+        -:  320:    char input_unix_port[256];
+        -:  321:    char output_unix_port[256];
+        -:  322:    char both_unix_port[256];
+        -:  323:    
+        -:  324:    // Get the ports and ip numbers for TCPC
+        -:  325:    int C_input_port;
+        -:  326:    int C_output_port;
+        -:  327:    int C_both_port;
+        -:  328:
+        -:  329:    char* input_ip;
+        -:  330:    char* output_ip;
+        -:  331:    char* both_ip;
+        -:  332:
+        -:  333:    // Mark which and what to create. 0-nothing, 1-TCPS, 2-TCPC
+       51:  334:    int got_input = 0;
+       51:  335:    int got_output = 0;
+       51:  336:    int got_both = 0;
+        -:  337:    
+        -:  338:    // Find all of the relevent flags and store them
+      126:  339:    for (int i = isE; i < argc; i += 2) {
+       77:  340:        if (i + 1 >= argc) {
+        1:  341:            print_usage(argv[0]);
+        -:  342:        }   
+       76:  343:        if (strcmp(argv[i], "-i") == 0) {
+       23:  344:            input_param = argv[i + 1];
+       23:  345:            int result = sscanf(input_param, "TCPS%d", &input_port);
+       23:  346:            char *result2 = strstr(input_param, "TCPC");
+       23:  347:            int result3 = sscanf(input_param, "UDPS%d", &input_port);
+       23:  348:            int result4 = sscanf(input_param, "UDSSS%s", input_unix_port);
+       23:  349:            int result5 = sscanf(input_param, "UDSCS%s", input_unix_port);
+       23:  350:            int result6 = sscanf(input_param, "UDSSD%s", input_unix_port);
+       23:  351:            if (result != 0)
+        -:  352:            {
+        4:  353:                got_input = 1;  // Set as TCPS
+       19:  354:            }else if (result2 != NULL) // If TCPC
+        -:  355:            {
+        1:  356:                input_ip = strtok(input_param+4, ",");  // Skip "TCPC"
+        1:  357:                char* token = strtok(NULL, ",");
+        1:  358:                C_input_port = atoi(token);    // Convert token to integer
+        1:  359:                got_input = 2;  
+       18:  360:            }else if (result3 != 0)  
+        -:  361:            {
+        8:  362:                got_input = 3;  
+       10:  363:            }else if (result4 != 0)  
+        -:  364:            {
+        1:  365:                got_input = 4;  
+        9:  366:            }else if (result5 != 0)  
+        -:  367:            {
+        1:  368:                got_input = 5;  
+        8:  369:            }else if (result6 != 0)  
+        -:  370:            {
+        4:  371:                got_input = 6;  
+        -:  372:            }
+        -:  373:            
+        -:  374:    
+       53:  375:        } else if (strcmp(argv[i], "-o") == 0) {
+       19:  376:            output_param = argv[i + 1];
+       19:  377:            int result = sscanf(output_param, "TCPS%d", &output_port); 
+       19:  378:            char *result2 = strstr(output_param, "TCPC");
+       19:  379:            char *result3 = strstr(output_param, "UDPC");
+       19:  380:            int result4 = sscanf(output_param, "UDSSS%s", output_unix_port);
+       19:  381:            int result5 = sscanf(output_param, "UDSCS%s", output_unix_port);
+       19:  382:            int result6 = sscanf(output_param, "UDSCD%s", output_unix_port);
+       19:  383:            if (result != 0)
+        -:  384:            {
+        1:  385:                got_output = 1;
+       18:  386:            }else if (result2 != NULL) // If TCPC
+        -:  387:            {
+        4:  388:                output_ip = strtok(output_param+4, ",");  // Skip "TCPC"
+        4:  389:                char* token = strtok(NULL, ",");
+        4:  390:                C_output_port = atoi(token);    // Convert token to integer
+        4:  391:                got_output = 2;
+       14:  392:            }else if (result3 != NULL)
+        -:  393:            {
+        5:  394:                output_ip = strtok(output_param+4, ",");  // Skip "UDPC"
+        5:  395:                char* token = strtok(NULL, ",");
+        5:  396:                C_output_port = atoi(token);    // Convert token to integer
+        5:  397:                got_output = 3;
+        9:  398:            }else if (result4 != 0)  
+        -:  399:            {
+        2:  400:                got_output = 4;  
+        7:  401:            }else if (result5 != 0)  
+        -:  402:            {
+        2:  403:                got_output = 5;
+        5:  404:            }else if (result6 != 0)  
+        -:  405:            {
+        4:  406:                got_output = 6;
+        -:  407:            }
+        -:  408:            
+       34:  409:        } else if (strcmp(argv[i], "-b") == 0) {
+        8:  410:            both_param = argv[i + 1];
+        8:  411:            int result = sscanf(both_param, "TCPS%d", &both_port); 
+        8:  412:            char *result2 = strstr(both_param, "TCPC");
+        8:  413:            int result3 = sscanf(both_param, "UDSSS%s", both_unix_port);
+        8:  414:            int result4 = sscanf(both_param, "UDSCS%s", both_unix_port);
+        8:  415:            if (result != 0) // If TCPC
+        -:  416:            {
+        2:  417:                got_both = 1;
+        6:  418:            }else if (result2 != NULL){
+        1:  419:                both_ip = strtok(both_param+4, ",");  // Skip "TCPC"
+        1:  420:                sscanf(both_param, ",%d", &C_both_port); 
+        1:  421:                char* token = strtok(NULL, ",");
+        1:  422:                C_both_port = atoi(token);    // Convert token to integer
+        1:  423:                got_both = 2;
+        5:  424:            }else if(result3 != 0){
+        -:  425:                
+        4:  426:                got_both = 3;
+        1:  427:            }else if(result4 != 0){
+        -:  428:                
+        1:  429:                got_both = 4;
+        -:  430:            }
+        -:  431:        
+       26:  432:        } else if (strcmp(argv[i], "-t") == 0){
+       25:  433:            signal(SIGALRM, handle_alarm); // Setting signal handler
+       25:  434:            time = atoi(argv[i + 1]);
+       25:  435:            alarm(time);    // Start alarm
+        -:  436:        } else {
+        1:  437:            print_usage(argv[0]);
+        -:  438:        }
+        -:  439:    }
+        -:  440:    // Devide the command into an array
+        -:  441:    char *args[256];
+       49:  442:    int i = 0;
+       49:  443:    char *token = strtok(command, " ");
+      146:  444:    while (token != NULL && i < 255) {
+       97:  445:        args[i++] = token;
+       97:  446:        token = strtok(NULL, " ");
+        -:  447:    }
+       49:  448:    args[i] = NULL;
+        -:  449:
+        -:  450:    int sockfd_input;
+        -:  451:    int sockfd_output;
+        -:  452:    int sockfd_both;
+        -:  453:
+       49:  454:    if (both_param)
+        -:  455:    {
+        8:  456:       if (got_both == 1)
+        -:  457:       {
+        2:  458:            sockfd_both = create_server(both_port); // One of the ports, they are the same. this is for avoiding to create two servers
+        -:  459:       }
+        6:  460:       else if(got_both == 2){    
+        1:  461:            sockfd_both = create_client(both_ip,C_both_port);
+        5:  462:       }else if(got_both == 3){
+        4:  463:            sockfd_both = create_unix_server(both_unix_port);
+        1:  464:       }else if(got_both == 4){
+        1:  465:            sockfd_both = create_unix_client(both_unix_port);
+        -:  466:       }
+        -:  467:       
+        -:  468:    }else{
+       41:  469:        if (input_param)
+        -:  470:        {
+       22:  471:            if(got_input == 1){
+        -:  472:                // Create a server and wait for client connection
+        3:  473:                sockfd_input = create_server(input_port);
+       19:  474:            }else if(got_input == 2){  // == 2
+        1:  475:                sockfd_input = create_client(input_ip,C_input_port);
+       18:  476:            }else if(got_input == 3){
+        8:  477:                sockfd_input = create_udp_server(input_port);
+       10:  478:            }else if(got_input == 4){
+        1:  479:                sockfd_input = create_unix_server(input_unix_port);
+        9:  480:            }else if(got_input == 5){
+        1:  481:                sockfd_input = create_unix_client(input_unix_port);
+        8:  482:            }else if(got_input == 6){
+        4:  483:                sockfd_input = create_unix_data_server(input_unix_port);
+        -:  484:            }
+        -:  485:            
+        -:  486:        }
+       38:  487:        if (output_param)
+        -:  488:        {
+       17:  489:            if(got_output == 1){
+        -:  490:                // Create a server and wait for client connection
+        1:  491:                sockfd_output = create_server(output_port);
+       16:  492:            }else if(got_output == 2){
+        4:  493:                sockfd_output = create_client(output_ip,C_output_port);
+       12:  494:            }else if(got_output == 3){
+        5:  495:                sockfd_output = create_udp_client(output_ip,C_output_port);
+        7:  496:            }else if(got_output == 4){
+        2:  497:                sockfd_output = create_unix_server(output_unix_port);
+        5:  498:            }else if(got_output == 5){
+        2:  499:                sockfd_output = create_unix_client(output_unix_port);
+        3:  500:            }else if(got_output == 6){
+        2:  501:                sockfd_output = create_unix_data_client();
+        -:  502:            }
+        -:  503:        }
+        -:  504:    }
+        -:  505:    
+        -:  506:    // this function will handle directing the file descripters as needed
+       43:  507:    handle(sockfd_input,sockfd_output,sockfd_both, got_input, got_output, got_both);
+        -:  508:
+       43:  509:    if (got_output == 3 || got_output == 6)    // for UDP
+        -:  510:    {
+        -:  511:        // Redirect stdout to a file descriptor
+        -:  512:        int fd[2]; // Array to hold the two file descriptors
+        7:  513:        if (pipe(fd) == -1) {
+    #####:  514:            perror("pipe");
+    #####:  515:            return 1;
+        -:  516:        }
+        -:  517:
+        7:  518:        pid_t pid = fork();
+        9:  519:        if (pid == 0)
+        -:  520:        {
+        -:  521:            // Child process
+        -:  522:            struct sockaddr_in server_addr;
+        -:  523:            struct sockaddr_un server_addr2;
+        2:  524:            close(fd[1]);
+        2:  525:            if (got_output == 3)
+        -:  526:            {
+    #####:  527:                server_addr = get_server(output_ip,C_output_port);
+        -:  528:            }
+        -:  529:            else{
+        2:  530:                server_addr2 = get_unix_server(output_unix_port);
+        -:  531:            }
+        -:  532:            
+        -:  533:            char buffer[1024];
+        -:  534:            while (1)
+       29:  535:            {
+       31:  536:                int bytes_read = read(fd[0], buffer, sizeof(buffer));
+       31:  537:                if (bytes_read == -1) {
+    #####:  538:                    perror("read");
+    #####:  539:                    return 1;
+        -:  540:                }
+       31:  541:                int len = strlen(buffer);
+       31:  542:                if (len > 1) { // Data entered
+        -:  543:                    // Send data to server
+        -:  544:                    int bytes_sent;
+       31:  545:                    if (got_output == 3)
+        -:  546:                    {   // in server : nc -u -l port
+    #####:  547:                        bytes_sent = sendto(sockfd_output, buffer, bytes_read, 0,(struct sockaddr *)&server_addr, sizeof(server_addr));
+    #####:  548:                        if (bytes_sent < 0) {
+    #####:  549:                            perror("sendto failed");
+    #####:  550:                            close(sockfd_output);
+    #####:  551:                            exit(EXIT_FAILURE);
+        -:  552:                        }
+        -:  553:                    }
+        -:  554:                    else{   // in server : nc -uU -l -k path
+       31:  555:                        bytes_sent = sendto(sockfd_output, buffer, bytes_read, 0,(struct sockaddr *)&server_addr2, sizeof(server_addr2));
+       31:  556:                        if (bytes_sent < 0) {
+        2:  557:                            perror("sendto failed");
+        2:  558:                            close(sockfd_output);
+        2:  559:                            exit(EXIT_FAILURE);
+        -:  560:                        }
+        -:  561:                    }
+       29:  562:                    if (bytes_sent < 0) {
+    #####:  563:                        perror("sendto failed");
+    #####:  564:                        close(sockfd_output);
+    #####:  565:                        exit(EXIT_FAILURE);
+        -:  566:                    }
+        -:  567:                }
+        -:  568:            }
+        -:  569:            close(sockfd_output);
+        -:  570:            close(fd[0]);
+        -:  571:        }else{
+        7:  572:            close(fd[0]);
+        7:  573:            dup2(fd[1],STDERR_FILENO);
+        7:  574:            dup2(fd[1],STDOUT_FILENO);
+        7:  575:            if (isE == 3)   // id -e run the program
+        -:  576:            {
+    #####:  577:                if (execvp(args[0], args) == -1) {
+    #####:  578:                perror("execvp");
+    #####:  579:                exit(EXIT_FAILURE);
+        -:  580:            }
+    #####:  581:            close(sockfd_output);
+    #####:  582:            close(fd[1]);
+        -:  583:            }else{  // Chat (print the input on the screen so it can be taken)
+        -:  584:                char buffer[1024]; // buffer to hold the input
+        -:  585:                while(1){
+        8:  586:                    if (fgets(buffer,sizeof(buffer), stdin) != NULL)
+        -:  587:                    {
+        -:  588:                        //printf("%s",buffer);
+        1:  589:                        dprintf(STDERR_FILENO,"%s",buffer);
+        -:  590:                    }
+        -:  591:                }
+        -:  592:            }
+        -:  593:        }
+        -:  594:    }
+        -:  595:
+        -:  596:    // Tcp
+       36:  597:    if(isE == 3)   // id -e run the program
+        -:  598:    {
+        -:  599:        // Execute the desired program
+       34:  600:        if (execvp(args[0], args) == -1) {
+    #####:  601:            perror("execvp");
+    #####:  602:            exit(EXIT_FAILURE);
+        -:  603:        }
+        -:  604:    }
+        -:  605:    // In else case we choose to print the input, this way the communication works
+        -:  606:    else{
+        -:  607:        char buffer[1024]; // buffer to hold the input
+        -:  608:        while(1){
+       2*:  609:            if (fgets(buffer,sizeof(buffer), stdin) != NULL)
+        -:  610:            {
+        -:  611:                //printf("%s",buffer);
+    #####:  612:                dprintf(STDERR_FILENO,"%s",buffer);
+        -:  613:            }
+        -:  614:            
+        -:  615:        }
+        -:  616:    }
+        -:  617:
+        -:  618:    // Close the sockets
+        -:  619:    // if (close(sockfd_input) == -1) {
+        -:  620:    //     perror("Error while closing socket");
+        -:  621:    //     exit(EXIT_FAILURE);
+        -:  622:    // }
+        -:  623:    // if (close(sockfd_output) == -1) {
+        -:  624:    //     perror("Error while closing socket");
+        -:  625:    //     exit(EXIT_FAILURE);
+        -:  626:    // }
+        -:  627:    // if (close(sockfd_both) == -1) {
+        -:  628:    //     perror("Error while closing socket");
+        -:  629:    //     exit(EXIT_FAILURE);
+        -:  630:    // }
+        -:  631:    return 0;
+       34:  632:}
+        -:  633:
+        -:  634:// Using netcat : 
+        -:  635:
+        -:  636:// tcp server : nc -l port
+        -:  637:// udp server : nc -u -l port
+        -:  638:// unix domain stream server : nc -U -l path
+        -:  639:// unix domain datagram server : nc -uU -l -k path
+        -:  640:
+        -:  641:// tcp client : nc localhost port
+        -:  642:// udp client : nc -u localhost port
+        -:  643:// unix domain stream client : nc -U path
+        -:  644:// unix domain datagram client : -uU path
+        -:  645:
+        -:  646:

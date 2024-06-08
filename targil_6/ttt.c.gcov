@@ -1,0 +1,243 @@
+        -:    0:Source:ttt.c
+        -:    0:Graph:ttt.gcno
+        -:    0:Data:ttt.gcda
+        -:    0:Runs:27
+        -:    1:#include <stdio.h>
+        -:    2:#include <stdlib.h>
+        -:    3:#include <string.h>
+        -:    4:#include <stdbool.h>
+        -:    5:
+        -:    6:#define ROW_COL 3 //size of matrix (3X3)
+        -:    7:int digitsPlay[9]; //steps of the program
+        -:    8:int matrixPlay[ROW_COL][ROW_COL] = {0}; //the matrix of ttt
+        -:    9:
+        -:   10:/*
+        -:   11: * function that check invalid arg
+        -:   12: */
+       27:   13:void input_validation(int argc , char *argv[])
+        -:   14:{
+        -:   15:    //Too many parameters
+       27:   16:    if(argc > 2)
+        -:   17:    {
+        1:   18:        fprintf(stderr,"Error- you need to input *only one* arg!\n");
+        1:   19:        exit(EXIT_FAILURE);  // Terminate the program successfully
+        -:   20:    }
+        -:   21:
+        -:   22:    //no parameter
+       26:   23:    if(argc == 1)
+        -:   24:    {
+        1:   25:        fprintf(stderr,"Error- you need to input arg, for example: '156324789'!\n");
+        1:   26:        exit(EXIT_FAILURE);
+        -:   27:    }
+        -:   28:
+       25:   29:    char* inputPlay = argv[1];
+       25:   30:    unsigned long int size = strlen(inputPlay);
+       25:   31:    int countD[10]={0}; //hold digits appears
+        -:   32:    int converTodigit;
+        -:   33:
+        -:   34:
+        -:   35:    //only 9 digit
+       25:   36:    if(size != 9)
+        -:   37:    {
+        1:   38:        fprintf(stderr,"Error- you need to input arg with only 9 digits length!\n");
+        1:   39:        exit(EXIT_FAILURE);
+        -:   40:    }
+        -:   41:
+        -:   42:    //only digit 1-9
+      237:   43:    for(size_t i = 0; i < size; i++)
+        -:   44:    {
+      216:   45:        char c = inputPlay[i];
+      216:   46:        if(c < '1' || c > '9')
+        -:   47:        {
+        1:   48:            fprintf(stderr,"Error- you need to only digits 1-9!\n");
+        1:   49:            exit(EXIT_FAILURE);
+        -:   50:        }
+        -:   51:
+      215:   52:        converTodigit = c - '0';
+      215:   53:        countD[converTodigit]++;
+      215:   54:        if(countD[converTodigit] > 1)
+        -:   55:        {
+        2:   56:            fprintf(stderr,"Error- there is a digit that appears more than once\n");
+        2:   57:            exit(EXIT_FAILURE);
+        -:   58:        }
+        -:   59:
+      213:   60:        digitsPlay[i] = converTodigit;
+        -:   61:    }
+        -:   62:
+        -:   63:    //if digit appears more than once
+      210:   64:    for (int i = 1; i < 10; ++i)
+        -:   65:    {
+      189:   66:        if(countD[i] != 1)
+        -:   67:        {
+    #####:   68:            fprintf(stderr,"Error- there is a digit that appears more than once\n");
+    #####:   69:            exit(EXIT_FAILURE);
+        -:   70:        }
+        -:   71:    }
+        -:   72:
+       21:   73:}
+        -:   74:
+        -:   75:/*
+        -:   76: * func that check if the game finished.
+        -:   77: * if the program win-will print "I WIN"
+        -:   78: * else-will print "I LOST"
+        -:   79: */
+        -:   80:
+      141:   81:bool checkFinishGame()
+        -:   82:{
+        -:   83:    //check diagonals
+      141:   84:    if (matrixPlay[0][0] == matrixPlay[1][1] && matrixPlay[1][1] == matrixPlay[2][2] && matrixPlay[0][0] != 0)
+        -:   85:    {
+        5:   86:        if(matrixPlay[0][0] == -1)
+        -:   87:        {
+        4:   88:            fprintf(stderr,"I WIN!\n");
+        4:   89:            return true;
+        1:   90:        } else if(matrixPlay[0][0] == -2){
+        1:   91:            fprintf(stderr,"I LOST.. \n");
+        1:   92:            return true;
+        -:   93:        }
+        -:   94:    }
+        -:   95:
+      136:   96:    if (matrixPlay[0][2] == matrixPlay[1][1] && matrixPlay[1][1] == matrixPlay[2][0] && matrixPlay[0][2] != 0)
+        -:   97:    {
+        3:   98:        if(matrixPlay[0][2] == -1)
+        -:   99:        {
+        2:  100:            fprintf(stderr,"I WIN!\n");
+        2:  101:            return true;
+        1:  102:        } else if(matrixPlay[0][2] == -2){
+        1:  103:            fprintf(stderr,"I LOST.. \n");
+        1:  104:            return true;
+        -:  105:        }
+        -:  106:    }
+        -:  107:
+        -:  108:    //check ROWS and COLS
+      506:  109:    for (int i = 0; i < ROW_COL; ++i)
+        -:  110:    {
+      384:  111:        if(matrixPlay[i][0]==matrixPlay[i][1] && matrixPlay[i][1]==matrixPlay[i][2] && matrixPlay[i][0] != 0)
+        -:  112:        {
+        8:  113:            if(matrixPlay[i][0] == -1)
+        -:  114:            {
+        6:  115:                fprintf(stderr,"I WIN!\n");
+        6:  116:                return true;
+        2:  117:            } else if(matrixPlay[i][0] == -2){
+        2:  118:                fprintf(stderr,"I LOST.. \n");
+        2:  119:                return true;
+        -:  120:            }
+        -:  121:        }
+      376:  122:        if(matrixPlay[0][i]==matrixPlay[1][i] && matrixPlay[1][i]==matrixPlay[2][i] && matrixPlay[0][i] != 0)
+        -:  123:        {
+        3:  124:            if(matrixPlay[0][i] == -1)
+        -:  125:            {
+        1:  126:                fprintf(stderr,"I WIN!\n");
+        1:  127:                return true;
+        2:  128:            } else if(matrixPlay[0][i] == -2){
+        2:  129:                fprintf(stderr,"I LOST.. \n");
+        2:  130:                return true;
+        -:  131:            }
+        -:  132:        }
+        -:  133:    }
+      122:  134:    return false;
+        -:  135:}
+        -:  136:
+        -:  137:
+        -:  138:/*
+        -:  139: * Function that updates the computers list of moves
+        -:  140: */
+      141:  141:void update_list(int position)
+        -:  142:{
+      603:  143:    for (size_t i = 0; i < sizeof(digitsPlay); i++)
+        -:  144:    {
+      603:  145:        if (digitsPlay[i] == position)
+        -:  146:        {
+      141:  147:            digitsPlay[i] = 0;  // Mark as played
+      141:  148:            return;
+        -:  149:        }
+        -:  150:    }
+        -:  151:}
+        -:  152:
+        -:  153:
+        -:  154:// program step - check in list for the next move + add to board
+       78:  155:void programStep()
+        -:  156:{
+        -:  157:    int position;
+      255:  158:    for (size_t i = 0; i < sizeof(digitsPlay); i++)
+        -:  159:    {
+      255:  160:        position = digitsPlay[i];
+      255:  161:        if (position != 0)  // If has not been played yet
+        -:  162:        {
+       78:  163:            ((int*)matrixPlay)[position-1] = -1;  // Mark on board
+       78:  164:            update_list(position); // Mark in list as played
+       78:  165:            fprintf(stderr,"Computer moved on : %d\n", position);
+       78:  166:            return;
+        -:  167:        }
+        -:  168:    }
+        -:  169:}
+        -:  170:
+        -:  171:// player's step - check if legal move + add to board
+       63:  172:void playerStep()
+        -:  173:{
+        -:  174:    int position;
+       63:  175:    bool legal = false;
+        -:  176:    int is_digit;
+        -:  177:    // A loop which makes sure that player's move is legal
+      149:  178:    while (!legal)
+        -:  179:    {
+       86:  180:        fprintf(stderr,"Your move : ");
+       86:  181:        is_digit = scanf("%d", &position);  // If is_digit is 0 then the user did not input a number
+       86:  182:        if (position > 9 || position < 1 || is_digit != 1)  // user input is not between 1 and 9
+        -:  183:        {
+        7:  184:            getchar();  // In case there was a digit input
+        7:  185:            fprintf(stderr,"please enter a number between 1 and 9\n");
+        7:  186:            legal = false;
+        -:  187:        }
+        -:  188:
+        -:  189:        else    // user input is between 1 and 9
+        -:  190:        {
+       79:  191:            if (((int*)matrixPlay)[position-1] != 0)  // Position is taken
+        -:  192:            {     
+       16:  193:                fprintf(stderr,"This position is taken\n");
+       16:  194:                legal = false;
+        -:  195:            }
+        -:  196:
+        -:  197:            else    // Valid input
+        -:  198:            {   
+       63:  199:                ((int*)matrixPlay)[position-1] = -2;  // Mark on board
+       63:  200:                update_list(position);  // Mark in list as played
+       63:  201:                fprintf(stderr,"moved succesfully\n");
+       63:  202:                legal = true;
+        -:  203:            }   
+        -:  204:        }
+        -:  205:    }
+       63:  206:}
+        -:  207:
+       27:  208:int main(int argc , char *argv[])
+        -:  209:{
+        -:  210:    // Force stdout to be unbuffered
+        -:  211:    //setvbuf(stdout, NULL, _IONBF, 0);
+        -:  212:
+        -:  213:    // Checks if input is correct + add the values to the digitplay
+       27:  214:    input_validation(argc,argv);
+       21:  215:    bool turn = true;   // true = computer's turn. false = player's turn
+        -:  216:
+        -:  217:    // A loop which itarates for all of the moves needed
+      143:  218:    for (size_t i = 0; i < ROW_COL*ROW_COL; i++)
+        -:  219:    {
+      141:  220:        if (turn)   // Computers turn
+        -:  221:        {
+       78:  222:            programStep();
+       78:  223:            turn = false;
+        -:  224:        }
+        -:  225:        else        // Player's turn
+        -:  226:        {
+       63:  227:            playerStep();
+       63:  228:            turn = true;
+        -:  229:        }
+        -:  230:
+      141:  231:        if (checkFinishGame())
+        -:  232:        {
+       19:  233:            return 0;
+        -:  234:        }
+        -:  235:    }
+        -:  236:    // End of the loop the board is full, so if it has reached here then there is no winner, tie.
+        2:  237:    fprintf(stderr,"TIE!\n");
+        2:  238:    return 0;
+        -:  239:}
